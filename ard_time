@@ -1,0 +1,819 @@
+/*1. Нажал кнопку MODE (1 клик) - показать часы
+2. Удержал кнопку MODE - зайти в меню "выбора режимов" и показать режим "H1--"
+  2.1 В режиме "H1--", нажать (1 клик) - показать "H2--", нажать  (1 клик) - показать "H3--", нажать  (1 клик) - показать "H4--"
+  2.2 В режиме "H1--", удержать кнопку SET - показывается режим "H1--" , с мигающими "--"
+    2.2.1 Если нажать UP или DOWN, то меняем занчение "--" на "00", "01",...,"59". Еще раз удержание SET - фиксируем значение - выход в раздел 2.1
+  2.3 В режиме "H2--", удержать кнопку SET - показывается режим "H2--" , с мигающими "--"
+    2.3.1 Если нажать UP или DOWN, то меняем значение "--" на "00", "01",...,"59". Еще раз удержание SET - фиксируем значение - выход в раздел 2.1*/
+
+
+#include <Wire.h>
+#include <TimeLib.h>
+#include <DS1307RTC.h>
+#include <GyverButton.h>
+#include <EEPROM.h>
+
+
+#define segmentA 2
+#define segmentB 3
+#define segmentC 4
+#define segmentD 5
+#define segmentE 6
+#define segmentF 7
+#define segmentG 8
+#define segmentDP 9
+
+#define DIGIT_1PIN 10  //(1)     //1234
+#define DIGIT_2PIN 11  //(2)
+#define DIGIT_3PIN 12  //(3)
+#define DIGIT_4PIN 13  //(4)
+
+//кнопки
+GButton butt1;  //mode
+GButton butt2;  //UP
+GButton butt3;  //DOWN
+GButton butt4;  //SET
+
+//Динамик
+#define SPEAKER A1
+
+//РЕЛЕ
+int in1 = A2; 
+
+int now_time; //текущее время
+tmElements_t tm;
+
+int time_delay = 4;
+int numMenu = 0;
+int numSubMenu = 1;
+int numSubMenuSetH1 = 0;
+int numSubMenuSetH2 = 0;
+int numSubMenuSetH3 = 0;
+int numSubMenuSetH4 = 0;
+
+int hh1 = 255; // часы режим 1
+int mm1 = 255; // минуты режим 1
+int hh2 = 255; // часы режим 2
+int mm2 = 255; // минуты режим 2
+
+int timeUPDOWN1 = 0;
+int timeUPDOWN2 = 0;
+int timeUPDOWN3 = 0;
+int timeUPDOWN4 = 0;
+
+long previousMillis = 0;
+
+
+void show_number(int num)  
+{
+  switch(num)
+  {
+    case 0:  
+    digitalWrite(segmentA, HIGH); 
+    digitalWrite(segmentB, HIGH); 
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, HIGH);
+    digitalWrite(segmentF, HIGH);
+    digitalWrite(segmentG, LOW); 
+    break;
+    case 1:  
+    digitalWrite(segmentA, LOW);  
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, LOW);  
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, LOW);
+    digitalWrite(segmentG, LOW);
+    break;
+    case 2:
+    digitalWrite(segmentA, HIGH);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, LOW);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, HIGH);
+    digitalWrite(segmentF, LOW);
+    digitalWrite(segmentG, HIGH);
+    break;
+    case 3:
+    digitalWrite(segmentA, HIGH);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, LOW);
+    digitalWrite(segmentG, HIGH);
+    break;
+    case 4:
+    digitalWrite(segmentA, LOW);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, LOW);
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, HIGH);
+    digitalWrite(segmentG, HIGH);
+    break;
+    case 5:
+    digitalWrite(segmentA, HIGH);
+    digitalWrite(segmentB, LOW);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, HIGH);
+    digitalWrite(segmentG, HIGH);
+    break;
+    case 6:
+    digitalWrite(segmentA, HIGH);
+    digitalWrite(segmentB, LOW);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, HIGH);
+    digitalWrite(segmentF, HIGH);
+    digitalWrite(segmentG, HIGH);
+    break;
+    case 7:
+    digitalWrite(segmentA, HIGH);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, LOW);
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, LOW);
+    digitalWrite(segmentG, LOW);
+    break;
+    case 8:
+    digitalWrite(segmentA, HIGH);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, HIGH);
+    digitalWrite(segmentF, HIGH);
+    digitalWrite(segmentG, HIGH);
+    break;
+    case 9:
+    digitalWrite(segmentA, HIGH);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, HIGH);
+    digitalWrite(segmentG, HIGH);
+    break;  
+    default:
+    digitalWrite(segmentA, LOW);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, HIGH);
+    digitalWrite(segmentE, HIGH);
+    digitalWrite(segmentF, LOW);
+    digitalWrite(segmentG, HIGH);
+    break;
+  }
+}
+
+void show_h(){        //H
+    digitalWrite(segmentA, LOW);
+    digitalWrite(segmentB, HIGH);
+    digitalWrite(segmentC, HIGH);
+    digitalWrite(segmentD, LOW);
+    digitalWrite(segmentE, HIGH);
+    digitalWrite(segmentF, HIGH);
+    digitalWrite(segmentG, HIGH);
+}
+
+void show_min(){        //-
+    digitalWrite(segmentA, LOW);
+    digitalWrite(segmentB, LOW);
+    digitalWrite(segmentC, LOW);
+    digitalWrite(segmentD, LOW);
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, LOW);
+    digitalWrite(segmentG, HIGH);
+}
+
+void display_digits_off(){
+    digitalWrite(segmentA, LOW);
+    digitalWrite(segmentB, LOW);
+    digitalWrite(segmentC, LOW);
+    digitalWrite(segmentD, LOW);
+    digitalWrite(segmentE, LOW);
+    digitalWrite(segmentF, LOW);
+    digitalWrite(segmentG, LOW);
+  }
+
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(segmentA, OUTPUT); 
+  pinMode(segmentB, OUTPUT);
+  pinMode(segmentC, OUTPUT);
+  pinMode(segmentD, OUTPUT);
+  pinMode(segmentE, OUTPUT);
+  pinMode(segmentF, OUTPUT);
+  pinMode(segmentG, OUTPUT);
+  
+  pinMode(DIGIT_1PIN, OUTPUT);
+  pinMode(DIGIT_2PIN, OUTPUT);
+  pinMode(DIGIT_3PIN, OUTPUT);
+  pinMode(DIGIT_4PIN, OUTPUT);
+
+  pinMode(in1, OUTPUT);
+
+  hh1 = EEPROM.read(0);
+  mm1 = EEPROM.read(1);
+  hh2 = EEPROM.read(2);
+  mm2 = EEPROM.read(3);
+ 
+}
+
+void mode_display_time(){    //функция отображения времени
+    int i = 0;
+   
+    while(i < 100) {
+      now_time = tm.Hour*100 + tm.Minute; 
+      
+      int a = now_time/ 1000;
+      int b = now_time % 1000/100;
+      int c = now_time % 100/10;
+      int d = now_time % 10;
+      
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(a);
+                delay(time_delay);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(b);
+                delay(time_delay);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(c);
+                delay(time_delay);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(d);
+                delay(time_delay);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);  
+                i++;
+     }
+     display_digits_off();
+     numMenu = 0;
+}
+
+
+//РЕЖИМ H1
+void mode_display_h1(){ // функция отображения режим H1  
+display_digits_off(); 
+hh1 = EEPROM.read(0);
+if (hh1 == 255){
+            int t_d = 2; //время мерцания индикаторов
+            show_h();
+            digitalWrite(DIGIT_1PIN,HIGH);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_number(1);
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,HIGH);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,HIGH);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d); 
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,HIGH);
+            delay(t_d); 
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);    
+} 
+
+if (hh1 < 255) {
+  
+   int ff = hh1 % 100/10; 
+   int gg = hh1 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(1);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(ff);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(gg);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);  
+  }
+}
+
+//РЕЖИМ РЕДАКТИРОВАНИЯ H1
+void mode_edit_h1(){ // функция отображения режим H1 
+      int cc = timeUPDOWN1 % 100/10; 
+      int dd = timeUPDOWN1 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(1);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(cc);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(dd);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+
+                if (timeUPDOWN1 > 59) {timeUPDOWN1 = 00;}
+                if (timeUPDOWN1 < 0)  {timeUPDOWN1 = 59;}   
+
+                if (butt2.isDouble()) { hh1 = 255; EEPROM.write(0, hh1); numSubMenu = 1; numSubMenuSetH1 = 0;}
+
+                if (butt2.isClick()) {timeUPDOWN1++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isClick()) {timeUPDOWN1--; tone(SPEAKER, 1000, 10);}
+                
+                if (butt2.isHold()) {timeUPDOWN1++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isHold()) {timeUPDOWN1--; tone(SPEAKER, 1000, 10);} 
+
+                if (butt4.isHold())  {tone(SPEAKER, 1000, 100); EEPROM.write(0, timeUPDOWN1); numSubMenu = 1; numSubMenuSetH1 = 0; } 
+                
+}
+
+
+
+
+//РЕЖИМ H2
+void mode_display_h2(){ // функция отображения режим H2
+display_digits_off(); 
+mm1 = EEPROM.read(1);
+if (mm1 == 255){
+            int t_d = 2; //время мерцания индикаторов
+            show_h();
+            digitalWrite(DIGIT_1PIN,HIGH);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_number(2);
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,HIGH);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,HIGH);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d); 
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,HIGH);
+            delay(t_d); 
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d); 
+            }
+
+if (mm1 < 255) {
+  
+   int fff = mm1 % 100/10; 
+   int ggg = mm1 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(2);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(fff);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(ggg);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);  
+  }
+             
+          
+}
+
+//РЕЖИМ РЕДАКТИРОВАНИЯ H2
+void mode_edit_h2(){ // функция отображения режим H2 
+      int ccc = timeUPDOWN2 % 100/10; 
+      int ddd = timeUPDOWN2 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(2);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(ccc);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(ddd);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+
+                if (timeUPDOWN2 >59) {timeUPDOWN2=00;}
+                if (timeUPDOWN2 <0)  {timeUPDOWN2=59;} 
+
+                if (butt2.isDouble()) { mm1 = 255; EEPROM.write(1, mm1); numSubMenu = 2; numSubMenuSetH2 = 0;}
+
+                if (butt2.isClick()) {timeUPDOWN2++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isClick()) {timeUPDOWN2--; tone(SPEAKER, 1000, 10);}
+                
+                if (butt2.isHold()) {timeUPDOWN2++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isHold()) {timeUPDOWN2--; tone(SPEAKER, 1000, 10);} 
+
+                if (butt4.isHold())  {tone(SPEAKER, 1000, 100); EEPROM.write(1, timeUPDOWN2); numSubMenu = 2; numSubMenuSetH2 = 0; }    
+                            
+}
+
+
+
+//РЕЖИМ H3
+void mode_display_h3(){ // функция отображения режим H3
+display_digits_off(); 
+hh2 = EEPROM.read(2);
+if (hh2 == 255){
+            int t_d = 2; //время мерцания индикаторов
+            show_h();
+            digitalWrite(DIGIT_1PIN,HIGH);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_number(3);
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,HIGH);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,HIGH);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d); 
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,HIGH);
+            delay(t_d); 
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);   
+}
+
+if (hh2 < 255) {
+  
+   int ffff = hh2 % 100/10; 
+   int gggg = hh2 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(3);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(ffff);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(gggg);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);  
+  }
+
+ 
+          
+}
+
+//РЕЖИМ РЕДАКТИРОВАНИЯ H3
+void mode_edit_h3(){ // функция отображения режим H3
+      int cccc = timeUPDOWN3 % 100/10; 
+      int dddd = timeUPDOWN3 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(3);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(cccc);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(dddd);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+
+                if (timeUPDOWN3 >59) {timeUPDOWN3=00;}
+                if (timeUPDOWN3 <0)  {timeUPDOWN3=59;}  
+
+                if (butt2.isDouble()) { hh2 = 255; EEPROM.write(2, hh2); numSubMenu = 3; numSubMenuSetH3 = 0; }
+
+                if (butt2.isClick()) {timeUPDOWN3++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isClick()) {timeUPDOWN3--; tone(SPEAKER, 1000, 10);}
+                
+                if (butt2.isHold()) {timeUPDOWN3++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isHold()) {timeUPDOWN3--; tone(SPEAKER, 1000, 10);} 
+
+                if (butt4.isHold())  {tone(SPEAKER, 1000, 100); EEPROM.write(2, timeUPDOWN3); numSubMenu = 3; numSubMenuSetH3 = 0; }                               
+}
+
+
+//РЕЖИМ H4
+void mode_display_h4(){ // функция отображения режим H4
+display_digits_off(); 
+mm2 = EEPROM.read(3);
+if (mm2 == 255){ 
+            int t_d = 2; //время мерцания индикаторов
+            show_h();
+            digitalWrite(DIGIT_1PIN,HIGH);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_number(4);
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,HIGH);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,HIGH);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d); 
+            show_min();
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,HIGH);
+            delay(t_d); 
+            digitalWrite(DIGIT_1PIN,LOW);
+            digitalWrite(DIGIT_2PIN,LOW);
+            digitalWrite(DIGIT_3PIN,LOW);
+            digitalWrite(DIGIT_4PIN,LOW);
+            delay(t_d);   
+} 
+
+if (mm2 < 255) {
+  
+   int fffff = mm2 % 100/10; 
+   int ggggg = mm2 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(4);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(fffff);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(ggggg);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);  
+  }
+          
+}
+
+//РЕЖИМ РЕДАКТИРОВАНИЯ H4
+void mode_edit_h4(){ // функция отображения режим H2 
+      int ccccc = timeUPDOWN4 % 100/10; 
+      int ddddd = timeUPDOWN4 % 10;
+
+                digitalWrite(DIGIT_1PIN,HIGH);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_h();
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,HIGH);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(4);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,HIGH);
+                digitalWrite(DIGIT_4PIN,LOW);
+                show_number(ccccc);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,HIGH);
+                show_number(ddddd);
+                delay(5);
+                digitalWrite(DIGIT_1PIN,LOW);
+                digitalWrite(DIGIT_2PIN,LOW);
+                digitalWrite(DIGIT_3PIN,LOW);
+                digitalWrite(DIGIT_4PIN,LOW);
+
+                if (timeUPDOWN4 >59) {timeUPDOWN4=00;}
+                if (timeUPDOWN4 <0)  {timeUPDOWN4=59;} 
+
+                if (butt2.isDouble()) { mm2 = 255; EEPROM.write(2, mm2); numSubMenu = 4; numSubMenuSetH4 = 0; }
+
+                if (butt2.isClick()) {timeUPDOWN4++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isClick()) {timeUPDOWN4--; tone(SPEAKER, 1000, 10);}
+                
+                if (butt2.isHold()) {timeUPDOWN4++; tone(SPEAKER, 1000, 10);}
+                if (butt3.isHold()) {timeUPDOWN4--; tone(SPEAKER, 1000, 10);} 
+
+                if (butt4.isHold())  {tone(SPEAKER, 1000, 100); EEPROM.write(3, timeUPDOWN4); numSubMenu = 4; numSubMenuSetH4 = 0; }                               
+}
+
+
+void loop() {
+  RTC.read(tm);
+    int analog = analogRead(A7);
+    butt1.tick(analog < 280 && analog > 230);
+    butt2.tick(analog < 360 && analog > 310);
+    butt3.tick(analog < 520 && analog > 480);
+    butt4.tick(analog < 1040 && analog > 980);
+
+ /* digitalWrite(in1, HIGH); // Выключаем реле
+  delay(2000);             // Ждем 2с
+  digitalWrite(in1, LOW);  // Включаем реле
+  delay(2000);  
+*/
+   
+  if (numMenu == 0) 
+  { 
+    display_digits_off(); 
+  }
+  else if (numMenu == 1) 
+  { 
+    mode_display_time(); 
+  }
+  else if (numMenu > 1)
+  {
+      switch(numSubMenu)
+      {
+        case 1:  if (numSubMenuSetH1 == 0 ) { mode_display_h1(); } if (numSubMenuSetH1 == 1)  { mode_edit_h1(); } break;
+        case 2:  if (numSubMenuSetH2 == 0 ) { mode_display_h2(); } if (numSubMenuSetH2 == 1)  { mode_edit_h2(); } break;
+        case 3:  if (numSubMenuSetH3 == 0 ) { mode_display_h3(); } if (numSubMenuSetH3 == 1)  { mode_edit_h3(); } break;
+        case 4:  if (numSubMenuSetH4 == 0 ) { mode_display_h4(); } if (numSubMenuSetH4 == 1)  { mode_edit_h4(); } break;
+      }
+  }
+
+
+  if (butt1.isClick()) {tone(SPEAKER, 1000, 10); numMenu = 1;} // меню 1 показать время на 500 мс. 
+  if (butt1.isHold())  {tone(SPEAKER, 1000, 100); numMenu = 2; } // выбор меню H1 
+    
+    if (butt2.isClick()) {tone(SPEAKER, 1000, 10); numSubMenu = numSubMenu + 1; if (numSubMenu > 4) {numSubMenu = 1;} }
+    if (butt3.isClick()) {tone(SPEAKER, 1000, 10); numSubMenu = numSubMenu - 1; if (numSubMenu < 1) {numSubMenu = 4;} }
+
+  if ((numSubMenu == 1) && (butt4.isClick())) {tone(SPEAKER, 2000, 10); numSubMenuSetH1 = 1; }
+  if ((numSubMenu == 2) && (butt4.isClick())) {tone(SPEAKER, 2000, 10); numSubMenuSetH2 = 1; }
+  if ((numSubMenu == 3) && (butt4.isClick())) {tone(SPEAKER, 2000, 10); numSubMenuSetH3 = 1; }
+  if ((numSubMenu == 4) && (butt4.isClick())) {tone(SPEAKER, 2000, 10); numSubMenuSetH4 = 1; }   
+
+
+}
